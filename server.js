@@ -16,7 +16,7 @@ app.get('/', (req, res) => {
 // Have the user login to their spotify account
 app.get('/login', function(req, res) {
 
-    var scope = 'user-read-private user-read-email';
+    var scope = 'user-top-read';
     // Query string is used to retrieve information from a database
     res.redirect('https://accounts.spotify.com/authorize?' +
       querystring.stringify({

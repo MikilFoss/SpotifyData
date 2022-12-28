@@ -17,16 +17,67 @@ app.get('/', (req, res) => {
 app.get('/login', function(req, res) {
 
     var scope = 'user-read-private user-read-email';
-    // your application requests authorization
+    // Query string is used to retrieve information from a database
     res.redirect('https://accounts.spotify.com/authorize?' +
       querystring.stringify({
         response_type: 'code',
         client_id: client_id,
         scope: scope,
         redirect_uri: redirect_uri
-      }));
-  });
+    }));
+});
 
+app.get('/callback', (req, res) => {
+
+    // User's authorization code
+    var code = req.query.code;
+
+    var authOptions = {
+        url: 'https://accounts.spotify.com/api/token',
+        form: {
+          code: code,
+          redirect_uri: redirect_uri,
+          grant_type: 'authorization_code'
+        },
+        headers: {
+          'Authorization': 'Basic ' + (new Buffer(client_id + ':' + client_secret).toString('base64'))
+        },
+        json: true
+      };
+
+      request.post(authOptions, function(error, response, body) {
+        var accessToken = body.access_token;
+        console.log(`Access token: ${accessToken}`);
+        getTopArtists(accessToken);
+        res.redirect('/');
+      });
+});
+
+
+function getTopArtists(accessToken) {
+    var topArtists = {
+        url: 'https://api.spotify.com/v1/me/top/artists',
+        headers: {
+            'Authorization': 'Bearer ' + accessToken
+        },
+        json: true
+    };
+  
+    request.get(topArtists, function(error, response, body) {
+        if (error) {
+            console.log(error);
+        } else if (typeof body === 'undefined' || !body.hasOwnProperty('items')) {
+            console.log('Error: Invalid response body');
+            console.log(body);
+        } else {
+            // Print the top artists
+            var out = body.items;
+            for (var i = 0; i < out.length; i++){
+                console.log(out[i].name);
+            }
+        }
+    });
+}
 
 // Establishes connection between code and web server
 app.listen(3000, () => {

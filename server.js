@@ -4,8 +4,8 @@ var querystring = require('querystring');
 const app = express();
 const port = 3000;
 
-var client_id = 'c4f0958cbf0741fcaa7dc824e1aca38a'; // Your client id
-var client_secret = 'edd99fffb1ea4007a1e1764060544774'; // Your secret
+var client_id = ''; // Your client id
+var client_secret = ''; // Your secret
 var redirect_uri = 'http://localhost:3000/callback';
   
 // Send homepage to the user

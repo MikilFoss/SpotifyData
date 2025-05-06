@@ -1,9 +1,11 @@
+require('dotenv').config();
+
 var express = require('express');
 var request = require('request');
 var querystring = require('querystring');
 var path = require('path');
 const pug = require('pug');
-const {MongoClient} = require('mongodb');
+const { MongoClient } = require('mongodb');
 const { send } = require('process');
 const bodyParser = require('body-parser');
 
@@ -45,99 +47,99 @@ app.use(bodyParser.json());
 app.set('view engine', 'pug');
 app.set('views', './public');
 
-var client_id = 'c4f0958cbf0741fcaa7dc824e1aca38a'; // Your client id
-var client_secret = '872bdd743dcc4feda732e4f4deb5150c'; // Your secret
+var client_id = process.env.SPOTIFY_CLIENT_ID;
+var client_secret = process.env.SPOTIFY_CLIENT_SECRET;
 var redirect_uri = 'http://localhost:3000/callback';
 
 const standardDeviation = (arr, usePopulation = false) => {
   const mean = arr.reduce((acc, val) => acc + val, 0) / arr.length;
   return Math.sqrt(
     arr.reduce((acc, val) => acc.concat((val - mean) ** 2), []).reduce((acc, val) => acc + val, 0) /
-      (arr.length - (usePopulation ? 0 : 1))
+    (arr.length - (usePopulation ? 0 : 1))
   );
 };
 
 // Send homepage to the user
 app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html');
-  });
+  res.sendFile(__dirname + '/index.html');
+});
 
 // Have the user login to their spotify account
-app.get('/login', function(req, res) {
+app.get('/login', function (req, res) {
 
-    var scope = 'user-top-read';
-    // Query string is used to retrieve information from a database
-    res.redirect('https://accounts.spotify.com/authorize?' +
-      querystring.stringify({
-        response_type: 'code',
-        client_id: client_id,
-        scope: scope,
-        redirect_uri: redirect_uri
+  var scope = 'user-top-read';
+  // Query string is used to retrieve information from a database
+  res.redirect('https://accounts.spotify.com/authorize?' +
+    querystring.stringify({
+      response_type: 'code',
+      client_id: client_id,
+      scope: scope,
+      redirect_uri: redirect_uri
     }));
 });
 
 app.get('/callback', (req, res) => {
-    console.log("IN CALLBACK " + term + " " + needUpdate);
-    if(needUpdate){
-      artists = [];
-      FullArtists = [];
-      songs = [];
-      uncompleteGenres = [];
-      genres = [];
-      genreFreq = [];
-      basicScore = 0;
-      varietyScore = 0;
-      outRecArtists = [];
-      topArtistPicURL = [];
-      needUpdate = false;
+  console.log("IN CALLBACK " + term + " " + needUpdate);
+  if (needUpdate) {
+    artists = [];
+    FullArtists = [];
+    songs = [];
+    uncompleteGenres = [];
+    genres = [];
+    genreFreq = [];
+    basicScore = 0;
+    varietyScore = 0;
+    outRecArtists = [];
+    topArtistPicURL = [];
+    needUpdate = false;
+  }
+  // User's authorization code
+  var code = req.query.code;
+
+  var authOptions = {
+    url: 'https://accounts.spotify.com/api/token',
+    form: {
+      code: code,
+      redirect_uri: redirect_uri,
+      grant_type: 'authorization_code'
+    },
+    headers: {
+      'Authorization': 'Basic ' + (Buffer.from(client_id + ':' + client_secret).toString('base64'))
+    },
+    json: true
+  };
+
+  request.post(authOptions, function (error, response, body) {
+    var accessToken = body.access_token;
+
+    if (names.length == 0) {
+      getName(accessToken);
     }
-    // User's authorization code
-    var code = req.query.code;
-
-    var authOptions = {
-        url: 'https://accounts.spotify.com/api/token',
-        form: {
-          code: code,
-          redirect_uri: redirect_uri,
-          grant_type: 'authorization_code'
-        },
-        headers: {
-          'Authorization': 'Basic ' + (Buffer.from(client_id + ':' + client_secret).toString('base64'))
-        },
-        json: true
-      };
-
-      request.post(authOptions, function(error, response, body) {
-        var accessToken = body.access_token;
-        
-        if (names.length == 0){
-          getName(accessToken);
-        }
-        if (artists.length == 0 ){
-          getTopArtists(accessToken);
-        }
-        if (songs.length == 0){
-          getTopSongs(accessToken);
-        }
-        checkArtists(100).then(() => {
-          if(genres.length != genre_count){
-            getTopGenres(accessToken);
-          }
-          if (outRecArtists.length == 0){
-            recommendArtists(accessToken);
-          }
-          if (topArtistPicURL.length == 0){
-            getTopArtistPicture(accessToken);
-          }
-        });
-        checkAll(100).then(() => {
-          sendData().then(() => {
-            getGroups().then(() => {
-              res.redirect('/done');
-            });
-          });
+    if (artists.length == 0) {
+      getTopArtists(accessToken);
+    }
+    if (songs.length == 0) {
+      getTopSongs(accessToken);
+    }
+    checkArtists(100).then(() => {
+      if (genres.length != genre_count) {
+        getTopGenres(accessToken);
+      }
+      if (outRecArtists.length == 0) {
+        recommendArtists(accessToken);
+      }
+      if (topArtistPicURL.length == 0) {
+        getTopArtistPicture(accessToken);
+      }
+    });
+    checkAll(100).then(() => {
+      sendData().then(() => {
+        getGroups().then(() => {
+          res.redirect('/done');
         });
       });
+    });
+  });
 });
 
 async function checkAll(ms) {
@@ -155,14 +157,14 @@ async function checkArtists(ms) {
 
 
 app.get('/done', (req, res) => {
-  res.render('done', {artists: artists, songs: songs, genres: genres, genreFreq: genreFreq, score: basicScore, name: names[0], recArtists: outRecArtists, topArtistPicURL: topArtistPicURL[0], varietyScore: varietyScore, groups: groups, userID: userID[0]});
+  res.render('done', { artists: artists, songs: songs, genres: genres, genreFreq: genreFreq, score: basicScore, name: names[0], recArtists: outRecArtists, topArtistPicURL: topArtistPicURL[0], varietyScore: varietyScore, groups: groups, userID: userID[0] });
 });
 
 app.get('/short', (req, res) => {
   if (term == "short_term") {
     needUpdate = false;
   }
-  else{
+  else {
     needUpdate = true;
     term = "short_term";
   }
@@ -174,7 +176,7 @@ app.get('/medium', (req, res) => {
   if (term == "medium_term") {
     needUpdate = false;
   }
-  else{
+  else {
     needUpdate = true;
     term = "medium_term";
   }
@@ -185,7 +187,7 @@ app.get('/long', (req, res) => {
   if (term == "long_term") {
     needUpdate = false;
   }
-  else{
+  else {
     needUpdate = true;
     term = "long_term";
   }
@@ -194,32 +196,32 @@ app.get('/long', (req, res) => {
 
 app.post('/createGroup', async (req, res) => {
   try {
-      await DBclient.connect();
-      console.log("Connected to MongoDB");
-      // create the new group document
-      const newGroup = {
-          groupName: req.body.groupName,
-          users: [req.body.userID]
-      }
-      // Get the groups collection
-      const groupsCollection = DBclient.db("spotifyApp").collection("groups");
-      // insert the new group into the collection
-      await groupsCollection.insertOne(newGroup);
-      console.log("New group added to the database");
-      res.send({message: 'Group created successfully'});
-      //update the user's groups array
-      const profilesCollection = DBclient.db("spotifyApp").collection("profiles");
-      user =  await profilesCollection.findOne({userID: req.body.userID});
-      var groups = user.groups;
-      groups.push(req.body.groupName);
-      await profilesCollection.updateOne({ userID: req.body.userID }, { $set: {groups: groups} });
+    await DBclient.connect();
+    console.log("Connected to MongoDB");
+    // create the new group document
+    const newGroup = {
+      groupName: req.body.groupName,
+      users: [req.body.userID]
+    }
+    // Get the groups collection
+    const groupsCollection = DBclient.db("spotifyApp").collection("groups");
+    // insert the new group into the collection
+    await groupsCollection.insertOne(newGroup);
+    console.log("New group added to the database");
+    res.send({ message: 'Group created successfully' });
+    //update the user's groups array
+    const profilesCollection = DBclient.db("spotifyApp").collection("profiles");
+    user = await profilesCollection.findOne({ userID: req.body.userID });
+    var groups = user.groups;
+    groups.push(req.body.groupName);
+    await profilesCollection.updateOne({ userID: req.body.userID }, { $set: { groups: groups } });
 
 
   } catch (e) {
-      console.error(e);
-      res.status(500).send({ message: 'Failed to create group', error: e });
+    console.error(e);
+    res.status(500).send({ message: 'Failed to create group', error: e });
   } finally {
-      await DBclient.close();
+    await DBclient.close();
   }
 });
 
@@ -233,33 +235,33 @@ app.post('/joinGroup', async (req, res) => {
     // Check if user already exists in group
     const group = await groupsCollection.findOne({ groupName: req.body.groupName, "users": req.body.userID });
     if (group) {
-        console.log("User already in group");
-        res.status(400).send({ message: 'User already in group' });
-        return 
+      console.log("User already in group");
+      res.status(400).send({ message: 'User already in group' });
+      return
     }
     // insert the new group into the collection
-    await groupsCollection.updateOne({ groupName: req.body.groupName }, { $push: {users: req.body.userID} });
+    await groupsCollection.updateOne({ groupName: req.body.groupName }, { $push: { users: req.body.userID } });
 
     console.log("User added to group");
-    res.send({message: 'User added to group successfully'});
-} catch (e) {
+    res.send({ message: 'User added to group successfully' });
+  } catch (e) {
     console.error(e);
     res.status(500).send({ message: 'Failed to join group', error: e });
-} finally {
+  } finally {
     await DBclient.close();
-}
+  }
 });
 
 
 function getName(accessToken) {
   var name = {
-      url: 'https://api.spotify.com/v1/me',
-      headers: {
-        'Authorization': 'Bearer ' + accessToken
-      },
-      json: true
+    url: 'https://api.spotify.com/v1/me',
+    headers: {
+      'Authorization': 'Bearer ' + accessToken
+    },
+    json: true
   };
-  request.get(name, function(error, response, body) {
+  request.get(name, function (error, response, body) {
     if (error) {
       console.log(error);
     } else if (typeof body === 'undefined' || !body.hasOwnProperty('display_name')) {
@@ -274,62 +276,62 @@ function getName(accessToken) {
 }
 
 function getTopArtists(accessToken) {
-    var topArtists = {
-        url: 'https://api.spotify.com/v1/me/top/artists',
-        qs: { 
-            limit: 50, // Spotify API maximum limit for top artists
-              time_range: term
-            },
-        headers: {
-            'Authorization': 'Bearer ' + accessToken
-        },
-        json: true
-    };
-  
-    request.get(topArtists, function(error, response, body) {
-        if (error) {
-            console.log(error);
-        } else if (typeof body === 'undefined' || !body.hasOwnProperty('items')) {
-            console.log('Error: Invalid response body');
-            console.log(body);
-        } else {
-            // Print the top artists
-            var out = body.items;
-            for (var i = 0; i < out.length; i++){
-                if (i < artist_count) {
-                  artists.push(out[i].name);
-                  FullArtists.push(out[i]);
-                   // you can get "more accurate" artist recommendations by filling FullArtists 
-                   //with more than artist_count artists but it increases load time by ~120%
-                }
-                uncompleteGenres.push(out[i].genres);
-                basicScore += out[i].popularity;
-            }
-            basicScore = basicScore / uncompleteGenres.length;
-            basicScore = Math.round(basicScore);
+  var topArtists = {
+    url: 'https://api.spotify.com/v1/me/top/artists',
+    qs: {
+      limit: 50, // Spotify API maximum limit for top artists
+      time_range: term
+    },
+    headers: {
+      'Authorization': 'Bearer ' + accessToken
+    },
+    json: true
+  };
+
+  request.get(topArtists, function (error, response, body) {
+    if (error) {
+      console.log(error);
+    } else if (typeof body === 'undefined' || !body.hasOwnProperty('items')) {
+      console.log('Error: Invalid response body');
+      console.log(body);
+    } else {
+      // Print the top artists
+      var out = body.items;
+      for (var i = 0; i < out.length; i++) {
+        if (i < artist_count) {
+          artists.push(out[i].name);
+          FullArtists.push(out[i]);
+          // you can get "more accurate" artist recommendations by filling FullArtists 
+          //with more than artist_count artists but it increases load time by ~120%
         }
-    });
+        uncompleteGenres.push(out[i].genres);
+        basicScore += out[i].popularity;
+      }
+      basicScore = basicScore / uncompleteGenres.length;
+      basicScore = Math.round(basicScore);
+    }
+  });
 }
 
 function getTopArtistPicture(accessToken) {
-    const topID = FullArtists[0].id;
-    var optionsArtistPic = {
-        url: `https://api.spotify.com/v1/artists/${topID}/`,
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        },
-        json: true
-    };
-    request.get(optionsArtistPic, function(error, response, body) {
-      if (error) {
-          console.log(error);
-      } else if (typeof body === 'undefined') {
-          console.log('Error: Invalid response body');
-          console.log(body);
-      } else {
-          // Print the top artists
-          topArtistPicURL.push(body.images[0].url);
-      }
+  const topID = FullArtists[0].id;
+  var optionsArtistPic = {
+    url: `https://api.spotify.com/v1/artists/${topID}/`,
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    },
+    json: true
+  };
+  request.get(optionsArtistPic, function (error, response, body) {
+    if (error) {
+      console.log(error);
+    } else if (typeof body === 'undefined') {
+      console.log('Error: Invalid response body');
+      console.log(body);
+    } else {
+      // Print the top artists
+      topArtistPicURL.push(body.images[0].url);
+    }
   });
 }
 
@@ -343,7 +345,7 @@ async function getArtistRecommendationsHelper(artistId, accessToken) {
   };
 
   return new Promise((resolve, reject) => {
-    request.get(options, function(error, response, body) {
+    request.get(options, function (error, response, body) {
       if (error) { // Network error
         console.error(`Network error for artistId ${artistId}:`, error);
         reject(error);
@@ -362,7 +364,7 @@ async function getArtistRecommendationsHelper(artistId, accessToken) {
         reject(new Error('Invalid response body structure from Spotify (200 OK)'));
       } else {
         // Successful and valid response
-        const num_recs_per_artist = 10; 
+        const num_recs_per_artist = 10;
         const out = body.artists;
         const recs = [];
         for (let i = 0; i < Math.min(out.length, num_recs_per_artist); i++) {
@@ -404,8 +406,8 @@ async function recommendArtists(accessToken) {
   }
 
   // sort the hashmap by value
-  var sortedRecs = Object.keys(recArtists).sort(function(a,b){return recArtists[b]-recArtists[a]});
-  
+  var sortedRecs = Object.keys(recArtists).sort(function (a, b) { return recArtists[b] - recArtists[a] });
+
   // return the top rec_artist_count
   for (var i = 0; i < rec_artist_count; i++) {
     if (!(sortedRecs[i] in FullArtists)) {
@@ -417,34 +419,35 @@ async function recommendArtists(accessToken) {
 
 function getTopSongs(accessToken) {
   var topSongs = {
-      url: 'https://api.spotify.com/v1/me/top/tracks',
-      qs: { limit: song_count,
-            time_range: term
-          },
-      headers: {
-          'Authorization': 'Bearer ' + accessToken
-      },
-      json: true
+    url: 'https://api.spotify.com/v1/me/top/tracks',
+    qs: {
+      limit: song_count,
+      time_range: term
+    },
+    headers: {
+      'Authorization': 'Bearer ' + accessToken
+    },
+    json: true
   };
 
-  request.get(topSongs, function(error, response, body) {
-      if (error) {
-          console.log(error);
-      } else if (typeof body === 'undefined' || !body.hasOwnProperty('items')) {
-          console.log('Error: Invalid response body');
-          console.log(body);
-      } else {
-          // Print the top artists
-          var out = body.items;
-          for (var i = 0; i < out.length; i++){
-              songs.push(out[i].name);
-          }
+  request.get(topSongs, function (error, response, body) {
+    if (error) {
+      console.log(error);
+    } else if (typeof body === 'undefined' || !body.hasOwnProperty('items')) {
+      console.log('Error: Invalid response body');
+      console.log(body);
+    } else {
+      // Print the top artists
+      var out = body.items;
+      for (var i = 0; i < out.length; i++) {
+        songs.push(out[i].name);
       }
+    }
   });
 }
 
 function getTopGenres(accessToken) {
-  
+
   //Make a hashmap that counts the number of times each genre appears
   var genreMap = new Map();
   for (var i = 0; i < uncompleteGenres.length; i++) {
@@ -456,7 +459,7 @@ function getTopGenres(accessToken) {
       }
     }
   }
-  
+
   //Sort the genres by number of times they appear and list the top genre_count genres
   var sortedGenres = new Map([...genreMap.entries()].sort((a, b) => b[1] - a[1]));
 
@@ -464,10 +467,10 @@ function getTopGenres(accessToken) {
   var i = 0;
   for (var [key, value] of sortedGenres) {
     if (i < 10) {
-       // change this value to change the number of genres used to calculate the variety score
-       freqs.push(value);
+      // change this value to change the number of genres used to calculate the variety score
+      freqs.push(value);
     }
-    else{
+    else {
       break;
     }
     i++;
@@ -487,8 +490,8 @@ function getTopGenres(accessToken) {
   }
   //capitalize the first letter of each word in each genre
   for (var i = 0; i < genres.length; i++) {
-    genres[i] = genres[i].replace(/(?:^|\s)\S/g, function(a) { return a.toUpperCase(); });
-}
+    genres[i] = genres[i].replace(/(?:^|\s)\S/g, function (a) { return a.toUpperCase(); });
+  }
 }
 
 
@@ -510,8 +513,8 @@ async function sendData() {
     const profilesCollection = DBclient.db("spotifyApp").collection("profiles");
 
     // check if the userID already exists
-    const userExist = await profilesCollection.findOne({userID: profileData.userID});
-    if(userExist){
+    const userExist = await profilesCollection.findOne({ userID: profileData.userID });
+    if (userExist) {
       // update the existing profile
       await profilesCollection.updateOne({ userID: profileData.userID }, { $set: { topArtists: profileData.topArtists, topSongs: profileData.topSongs, topGenres: profileData.topGenres } });
     } else {
@@ -528,29 +531,29 @@ async function sendData() {
 
 async function getGroups() {
   try {
-      await DBclient.connect();
-      console.log("Connected to MongoDB");
-      // Get the profiles collection
-      const profilesCollection = DBclient.db("spotifyApp").collection("profiles");
-      // Find the profile that match with userID
-      const profile = await profilesCollection.findOne({userID: userID[0]});
-      // update the group array with the group array from the profile
-      if (profile) {
-          for (var i = 0; i < profile.groups.length; i++) {
-            groups.push(profile.groups[i]);
-          }
-      } else {
-          console.log(`User ${userID} not found`);
+    await DBclient.connect();
+    console.log("Connected to MongoDB");
+    // Get the profiles collection
+    const profilesCollection = DBclient.db("spotifyApp").collection("profiles");
+    // Find the profile that match with userID
+    const profile = await profilesCollection.findOne({ userID: userID[0] });
+    // update the group array with the group array from the profile
+    if (profile) {
+      for (var i = 0; i < profile.groups.length; i++) {
+        groups.push(profile.groups[i]);
       }
+    } else {
+      console.log(`User ${userID} not found`);
+    }
   } catch (e) {
-      console.error(e);
+    console.error(e);
   } finally {
-      await DBclient.close();
+    await DBclient.close();
   }
 }
 
 
 // Establishes connection between code and web server
 app.listen(3000, () => {
-    console.log('Listening on port 3000');
-  });
+  console.log('Listening on port 3000');
+});

@@ -102,7 +102,7 @@ app.get('/callback', (req, res) => {
           grant_type: 'authorization_code'
         },
         headers: {
-          'Authorization': 'Basic ' + (new Buffer(client_id + ':' + client_secret).toString('base64'))
+          'Authorization': 'Basic ' + (Buffer.from(client_id + ':' + client_secret).toString('base64'))
         },
         json: true
       };
@@ -277,7 +277,7 @@ function getTopArtists(accessToken) {
     var topArtists = {
         url: 'https://api.spotify.com/v1/me/top/artists',
         qs: { 
-            limit: 100, //the number of artists we're using to calculate popscore and genres
+            limit: 50, // Spotify API maximum limit for top artists
               time_range: term
             },
         headers: {
@@ -344,20 +344,33 @@ async function getArtistRecommendationsHelper(artistId, accessToken) {
 
   return new Promise((resolve, reject) => {
     request.get(options, function(error, response, body) {
-      if (error) {
-        console.log(error);
+      if (error) { // Network error
+        console.error(`Network error for artistId ${artistId}:`, error);
         reject(error);
-      } else if (!body.hasOwnProperty('artists')) {
-        console.log('Error: Invalid response body');
-        console.log(body);
-        reject(new Error('Invalid response body'));
+      } else if (response.statusCode === 404) {
+        // Spotify returns 404 if artist has no related artists or artistId is invalid.
+        console.warn(`No related artists found (404) for artistId ${artistId}. Response body:`, body);
+        resolve(null); // Caller (recommendArtists) handles null by skipping.
+      } else if (response.statusCode !== 200) {
+        // Other HTTP errors (e.g., 401, 403, 500)
+        const errorMessage = body && body.error && body.error.message ? body.error.message : 'Unknown Spotify API error';
+        console.error(`Spotify API error ${response.statusCode} for artistId ${artistId}: ${errorMessage}. Body:`, body);
+        reject(new Error(`Spotify API error: ${response.statusCode} - ${errorMessage}`));
+      } else if (!body || !body.hasOwnProperty('artists') || !Array.isArray(body.artists)) {
+        // Successful response (200 OK) but body structure is not as expected.
+        console.error(`Invalid response body structure for artistId ${artistId} (200 OK). Body:`, body);
+        reject(new Error('Invalid response body structure from Spotify (200 OK)'));
       } else {
-        // return an array of the top 10 recommended artists
-        var num_recs_per_artist = 10;
-        var out = body.artists;
-        var recs = [];
-        for (var i = 0; i < num_recs_per_artist; i++) {
-          recs.push(out[i].name);
+        // Successful and valid response
+        const num_recs_per_artist = 10; 
+        const out = body.artists;
+        const recs = [];
+        for (let i = 0; i < Math.min(out.length, num_recs_per_artist); i++) {
+          if (out[i] && out[i].name) {
+            recs.push(out[i].name);
+          } else {
+            console.warn(`Found an undefined artist object or artist without a name in related artists for ${artistId} at index ${i}. Item:`, out[i]);
+          }
         }
         resolve(recs);
       }
